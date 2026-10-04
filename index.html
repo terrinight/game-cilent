@@ -1,46 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Rắn Săn Táo - Tẻi</title>
+    <title>test</title>
     <style>
-        body { text-align: center; font-family: Arial, sans-serif; background: #2c3e50; color: white; }
-        canvas { border: 2px solid white; background: #ecf0f1; margin-top: 20px; box-shadow: 0 0 10px #000; }
+        body { text-align: center; font-family: Arial, sans-serif; background: #2c3e50; color: white; overflow: hidden; }
+        canvas { border: 2px solid white; background: #ecf0f1; margin-top: 20px; box-shadow: 0 0 10px #000; touch-action: none; }
     </style>
 </head>
 <body>
-    <h1>Game Rắn Săn Táo</h1>
+    <h1>test</h1>
     <h2 id="scoreText">Điểm: 0</h2>
     
     <canvas id="gameCanvas" width="400" height="400"></canvas>
-    <p>Dùng <b>phím mũi tên</b> để di chuyển.</p>
+    <p>Dùng <b>mũi tên</b> (PC) hoặc <b>vuốt màn hình</b> (Điện thoại).</p>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreText = document.getElementById("scoreText");
-        const CELL_SIZE = 40;
+        
+        // Đổi kích thước ô từ 40 xuống 20 để có bản đồ to 20x20
+        const CELL_SIZE = 20; 
 
-        // BƯỚC QUAN TRỌNG: Thay đường link wss:// dưới đây bằng link máy chủ Render của bạn!
-        // Ví dụ: wss://game-cua-tei.onrender.com
         const socket = new WebSocket("wss://ran-test.onrender.com");
 
         socket.onopen = () => { console.log("Đã kết nối máy chủ!"); };
 
         socket.onmessage = (event) => {
             const state = JSON.parse(event.data);
+            
+            // Nếu chết, báo Game Over và dừng vẽ
+            if (state.status === "gameover") {
+                scoreText.innerText = "GAME OVER! Đợi 1 tí để chơi lại...";
+                ctx.fillStyle = "rgba(231, 76, 60, 0.5)"; // Phủ nền đỏ mờ
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+            
+            scoreText.innerText = "Điểm: " + state.score;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Vẽ táo
+            // Vẽ quả táo
             ctx.fillStyle = "#e74c3c";
             ctx.fillRect(state.apple.x * CELL_SIZE, state.apple.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
             
-            // Vẽ người chơi
-            ctx.fillStyle = "#2980b9";
-            ctx.fillRect(state.player.x * CELL_SIZE, state.player.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-            
-            scoreText.innerText = "Điểm: " + state.score;
+            // Vẽ Rắn bằng vòng lặp (vì rắn giờ là 1 danh sách nhiều ô)
+            for (let i = 0; i < state.snake.length; i++) {
+                // Đầu rắn màu nhạt, thân màu đậm cho đẹp
+                if (i === 0) ctx.fillStyle = "#3498db"; 
+                else ctx.fillStyle = "#2980b9";
+                
+                // Trừ đi 1px để thấy rõ từng đốt của con rắn
+                ctx.fillRect(state.snake[i].x * CELL_SIZE, state.snake[i].y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1);
+            }
         };
 
+        // Lệnh bàn phím
         document.addEventListener("keydown", (e) => {
             let action = null;
             if (e.key === "ArrowUp") action = "up";
@@ -49,6 +64,30 @@
             if (e.key === "ArrowRight") action = "right";
             if (action) socket.send(JSON.stringify({ action: action }));
         });
+
+        // Lệnh vuốt màn hình
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        canvas.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, false);
+
+        canvas.addEventListener('touchend', function(e) {
+            let touchEndX = e.changedTouches[0].screenX;
+            let touchEndY = e.changedTouches[0].screenY;
+            let dx = touchEndX - touchStartX;
+            let dy = touchEndY - touchStartY;
+            if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return; 
+            let action = null;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 0) action = "right"; else action = "left";
+            } else {
+                if (dy > 0) action = "down"; else action = "up";
+            }
+            if (action) socket.send(JSON.stringify({ action: action }));
+        }, false);
     </script>
 </body>
 </html>
